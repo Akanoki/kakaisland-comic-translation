@@ -202,7 +202,7 @@ def example_custom_processing_with_translation():
         target_lang='zh'
     )
     
-    image_path = "manga.jpg"
+    image_path = "your_manga.jpg"  # 替换为你的图片路径
     if not os.path.exists(image_path):
         print(f"图片文件不存在: {image_path}")
         print("请将 'manga.jpg' 替换为实际的图片路径\n")
@@ -256,10 +256,10 @@ def example_complete_workflow_with_api_key():
     # ========================================
     
     # ARK API 密钥 - 直接在这里设置，无需环境变量
-    ARK_API_KEY = "your-api-key-here"  # 替换为你的实际 API 密钥
+    ARK_API_KEY = "6ecd7934-fd45-4484-8f40-42a2ae4c94db"  # 替换为你的实际 API 密钥
     
     # 图片路径
-    image_path = "manga.jpg"  # 替换为你的图片路径
+    image_path = "C:\\Users\\ADMIN\\Desktop\\kakaisland\\01_111.jpg"  # 替换为你的图片路径
     
     # 输出路径
     output_text_file = "output_result.txt"  # 文本结果输出路径
@@ -385,7 +385,7 @@ def main():
     # example_custom_processing_with_translation()
     
     # 推荐使用这个示例 - 完整工作流
-    # example_complete_workflow_with_api_key()
+    example_complete_workflow_with_api_key()
     
     print("=" * 60)
     print("使用说明")

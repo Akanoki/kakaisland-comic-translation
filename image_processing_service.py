@@ -47,7 +47,7 @@ class ImageProcessingService:
             cv2.fillPoly(mask, [points], 255)
         
         # 稍微扩大遮罩区域，确保完全覆盖文本
-        kernel = np.ones((3, 3), np.uint8)
+        kernel = np.ones((5, 5), np.uint8)
         mask = cv2.dilate(mask, kernel, iterations=2)
         
         return mask
@@ -87,9 +87,9 @@ class ImageProcessingService:
         if text_length > 0:
             # 预估每个字符占用的宽度
             char_width = width / text_length
-            font_size = int(min(char_width * 1.2, height * 0.8))
+            font_size = int(min(char_width * 1.5, height * 1))
             # 限制字体大小范围
-            font_size = max(10, min(font_size, 50))
+            font_size = max(20, min(font_size, 50))
         else:
             font_size = self.font_size
         

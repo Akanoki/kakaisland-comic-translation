@@ -91,10 +91,25 @@ class TranslationService:
             
             if response.status_code == 200:
                 result = response.json()
-                # 提取翻译结果
+                # 优先处理 choices 字段（兼容旧逻辑）
                 if 'choices' in result and len(result['choices']) > 0:
                     translated = result['choices'][0].get('message', {}).get('content', '')
                     return translated
+                # 兼容 output 字段结构
+                elif 'output' in result and isinstance(result['output'], list) and len(result['output']) > 0:
+                    output_item = result['output'][0]
+                    if (
+                        isinstance(output_item, dict)
+                        and 'content' in output_item
+                        and isinstance(output_item['content'], list)
+                        and len(output_item['content']) > 0
+                        and isinstance(output_item['content'][0], dict)
+                        and 'text' in output_item['content'][0]
+                    ):
+                        return output_item['content'][0]['text']
+                    else:
+                        print(f"警告: output 字段格式异常: {result}")
+                        return None
                 else:
                     print(f"警告: API 响应格式异常: {result}")
                     return None
