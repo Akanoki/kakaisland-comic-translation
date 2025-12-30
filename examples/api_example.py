@@ -245,6 +245,130 @@ def example_custom_processing_with_translation():
     print("\n自定义双语结果已保存到 custom_bilingual_output.txt\n")
 
 
+def example_enhanced_manga_recognition():
+    """示例7: 增强型漫画识别（优化参数 + 文本合并）- 提高准确率"""
+    print("=" * 60)
+    print("示例 7: 增强型漫画识别 - 解决漏字和文本拆分问题")
+    print("=" * 60)
+    
+    # ========================================
+    # 配置区域 - 在此处直接设置参数
+    # ========================================
+    
+    # ARK API 密钥
+    ARK_API_KEY = "your-api-key-here"  # 替换为你的实际 API 密钥
+    
+    # 图片路径
+    image_path = "manga.jpg"  # 替换为你的漫画图片路径
+    
+    # 输出路径
+    output_text_file = "manga_enhanced_result.txt"
+    output_image_file = "manga_enhanced_translated.jpg"
+    
+    # 语言设置
+    ocr_lang = 'japan'      # 日文漫画
+    source_lang = 'ja'
+    target_lang = 'zh'
+    
+    # ========================================
+    # 增强检测参数 - 提高识别准确率
+    # ========================================
+    use_enhanced_detection = True    # 启用增强检测
+    det_db_thresh = 0.2              # 检测阈值（降低以检测更多文本，默认0.3）
+    det_db_box_thresh = 0.4          # 文本框阈值（降低以减少漏检，默认0.6）
+    det_db_unclip_ratio = 2.0        # 扩大检测框（增大以减少漏字，默认1.5）
+    
+    merge_boxes = True               # 启用文本框合并（解决拆分问题）
+    
+    # ========================================
+    # 执行处理
+    # ========================================
+    
+    print(f"\n配置信息:")
+    print(f"  图片路径: {image_path}")
+    print(f"  OCR 语言: {ocr_lang}")
+    print(f"  增强检测: {'启用' if use_enhanced_detection else '禁用'}")
+    if use_enhanced_detection:
+        print(f"    - det_db_thresh: {det_db_thresh} (降低可检测更多文本)")
+        print(f"    - det_db_box_thresh: {det_db_box_thresh} (降低可减少漏检)")
+        print(f"    - det_db_unclip_ratio: {det_db_unclip_ratio} (增大可减少漏字)")
+    print(f"  文本框合并: {'启用' if merge_boxes else '禁用'}")
+    print(f"  翻译: {source_lang} → {target_lang}\n")
+    
+    # 检查图片
+    if not os.path.exists(image_path):
+        print(f"错误: 图片文件不存在: {image_path}")
+        print("请修改 image_path 变量\n")
+        return
+    
+    # 检查 API 密钥
+    if ARK_API_KEY == "your-api-key-here":
+        print("警告: 请先设置 ARK_API_KEY\n")
+        return
+    
+    try:
+        # 初始化增强型服务
+        print("正在初始化增强型 OCR 服务...")
+        service = TextRecognitionService(
+            lang=ocr_lang,
+            use_angle_cls=True,              # 启用方向分类器
+            use_gpu=False,                    # 根据硬件情况设置
+            enable_translation=True,
+            source_lang=source_lang,
+            target_lang=target_lang,
+            ark_api_key=ARK_API_KEY,
+            enable_image_processing=True,
+            # 增强检测参数
+            use_enhanced_detection=use_enhanced_detection,
+            det_db_thresh=det_db_thresh,
+            det_db_box_thresh=det_db_box_thresh,
+            det_db_unclip_ratio=det_db_unclip_ratio
+        )
+        
+        # 执行识别、翻译和图片处理
+        print("\n开始处理...")
+        results = service.recognize_text(
+            image_path,
+            output_file=output_text_file,
+            output_image=output_image_file,
+            merge_boxes=merge_boxes  # 启用文本框合并
+        )
+        
+        # 显示结果摘要
+        print("\n" + "=" * 60)
+        print("处理完成！增强功能说明：")
+        print("=" * 60)
+        print(f"\n✓ 使用增强检测参数，减少漏字问题")
+        print(f"✓ 启用文本框合并，解决句子拆分问题")
+        print(f"✓ 共处理 {len(results)} 条文本")
+        
+        # 显示部分结果
+        if results:
+            print(f"\n前 3 条结果:")
+            for i in range(min(3, len(results))):
+                result = results[i]
+                print(f"\n{i + 1}. 原文: {result['text']}")
+                if 'translated' in result and result.get('translation_success', False):
+                    print(f"   译文: {result['translated']}")
+        
+        print(f"\n输出文件:")
+        print(f"  文本: {output_text_file}")
+        print(f"  图片: {output_image_file}")
+        
+        print("\n" + "=" * 60)
+        print("参数调优建议：")
+        print("=" * 60)
+        print("• 如果还有漏字：进一步降低 det_db_thresh (0.2 → 0.15)")
+        print("• 如果检测太多噪点：提高 det_db_box_thresh (0.4 → 0.5)")
+        print("• 如果字被截断：增大 det_db_unclip_ratio (2.0 → 2.5)")
+        print("• 如果文本合并不够：在 merge_text_boxes 中调整 vertical_threshold")
+        print("\n")
+        
+    except Exception as e:
+        print(f"\n错误: {str(e)}")
+        print("请检查配置和依赖安装\n")
+
+
 def example_complete_workflow_with_api_key():
     """示例6: 完整工作流（设置 API 密钥、识别、翻译、生成图片）- 推荐使用"""
     print("=" * 60)
@@ -358,24 +482,29 @@ def main():
     print("PaddleOCR 文本识别与翻译服务 - 使用示例")
     print("=" * 60 + "\n")
     
-    print("推荐使用示例 6 - 完整工作流示例")
+    print("🌟 推荐使用示例 7 - 增强型漫画识别（解决漏字和拆分问题）")
     print("=" * 60)
-    print("示例 6 允许直接在代码中设置 API 密钥，无需环境变量")
-    print("提供完整的 OCR → 翻译 → 图片处理 工作流\n")
+    print("示例 7 专门针对漫画优化，提供:")
+    print("  ✓ 增强检测参数，减少漏字")
+    print("  ✓ 文本框智能合并，解决句子拆分")
+    print("  ✓ 直接设置 API 密钥，无需环境变量")
+    print("  ✓ 完整 OCR → 翻译 → 图片生成 工作流\n")
     
-    print("其他示例说明：")
+    print("其他示例说明:")
     print("1. 示例 1: 基础 OCR 识别（不翻译）")
     print("2. 示例 2: OCR + 翻译")
     print("3. 示例 3: 批量处理")
     print("4. 示例 4: 多语言翻译")
     print("5. 示例 5: 自定义处理")
-    print("6. 示例 6: 完整工作流（推荐）★\n")
+    print("6. 示例 6: 完整工作流")
+    print("7. 示例 7: 增强型漫画识别（最新推荐）⭐⭐⭐\n")
     
-    print("快速开始：")
-    print("1. 编辑 example_complete_workflow_with_api_key() 函数")
+    print("快速开始（针对漫画识别）：")
+    print("1. 编辑 example_enhanced_manga_recognition() 函数")
     print("2. 设置 ARK_API_KEY、image_path 等参数")
-    print("3. 取消下面 example_complete_workflow_with_api_key() 的注释")
-    print("4. 运行: python3 examples/api_example.py\n")
+    print("3. 根据需要调整检测参数（det_db_thresh, det_db_box_thresh, det_db_unclip_ratio）")
+    print("4. 取消下面 example_enhanced_manga_recognition() 的注释")
+    print("5. 运行: python3 examples/api_example.py\n")
     
     # 运行示例（实际使用时取消注释）
     # example_single_image()
@@ -383,15 +512,16 @@ def main():
     # example_batch_translation()
     # example_multilingual_translation()
     # example_custom_processing_with_translation()
+    # example_complete_workflow_with_api_key()
     
-    # 推荐使用这个示例 - 完整工作流
-    example_complete_workflow_with_api_key()
+    # 最新推荐 - 增强型漫画识别
+    # example_enhanced_manga_recognition()
     
     print("=" * 60)
     print("使用说明")
     print("=" * 60)
     print("请取消上面相应示例函数的注释来运行")
-    print("推荐直接使用 example_complete_workflow_with_api_key()\n")
+    print("推荐使用 example_enhanced_manga_recognition() 获得最佳漫画识别效果\n")
 
 
 if __name__ == '__main__':

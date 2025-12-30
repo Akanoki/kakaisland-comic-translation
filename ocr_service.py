@@ -20,7 +20,8 @@ class TextRecognitionService:
     def __init__(self, lang='japan', use_angle_cls=True, use_gpu=False, 
                  enable_translation=False, source_lang='ja', target_lang='zh',
                  ark_api_key=None, ark_model=None, enable_image_processing=False,
-                 font_path=None, font_size=20):
+                 font_path=None, font_size=20, use_enhanced_detection=False,
+                 det_db_thresh=0.3, det_db_box_thresh=0.5, det_db_unclip_ratio=1.6):
         """
         初始化 PaddleOCR、翻译服务和图片处理服务
         
@@ -36,13 +37,29 @@ class TextRecognitionService:
             enable_image_processing: 是否启用图片处理（inpaint + 绘制翻译文本）
             font_path: 字体文件路径（用于绘制翻译文本）
             font_size: 默认字体大小
+            use_enhanced_detection: 是否使用增强检测参数（提高漫画识别准确率）
+            det_db_thresh: 检测阈值（默认0.3，降低可检测更多文本）
+            det_db_box_thresh: 文本框阈值（默认0.5，降低可减少漏检）
+            det_db_unclip_ratio: 扩大检测框（默认1.6，增大可减少漏字）
         """
-        self.ocr = PaddleOCR(
-            lang=lang,
-            use_angle_cls=use_angle_cls,
-            use_gpu=use_gpu,
-            show_log=False
-        )
+        # 根据是否使用增强检测设置参数
+        ocr_params = {
+            'lang': lang,
+            'use_angle_cls': use_angle_cls,
+            'use_gpu': use_gpu,
+            'show_log': False
+        }
+        
+        if use_enhanced_detection:
+            ocr_params.update({
+                'det_db_thresh': det_db_thresh,
+                'det_db_box_thresh': det_db_box_thresh,
+                'det_db_unclip_ratio': det_db_unclip_ratio
+            })
+            print(f"启用增强检测参数: thresh={det_db_thresh}, box_thresh={det_db_box_thresh}, unclip_ratio={det_db_unclip_ratio}")
+        
+        self.ocr = PaddleOCR(**ocr_params)
+        self.use_enhanced_detection = use_enhanced_detection
         print(f"PaddleOCR 初始化成功 (语言: {lang}, GPU: {use_gpu})")
         
         # 初始化翻译服务
@@ -77,7 +94,98 @@ class TextRecognitionService:
                 print("将继续执行，但不进行图片处理")
                 self.enable_image_processing = False
     
-    def recognize_text(self, image_path, output_file=None, output_image=None):
+    def merge_text_boxes(self, text_boxes, vertical_threshold=20, horizontal_threshold=50):
+        """
+        合并相邻的文本框，解决文本被拆分成多段的问题
+        
+        Args:
+            text_boxes: OCR识别的文本框列表
+            vertical_threshold: 垂直方向阈值（像素），小于此值的文本框会被合并
+            horizontal_threshold: 水平方向阈值（像素），用于判断是否在同一列
+        
+        Returns:
+            合并后的文本框列表
+        """
+        if not text_boxes:
+            return []
+        
+        # 按位置排序：先按x坐标（列），再按y坐标（行）
+        sorted_boxes = sorted(text_boxes, key=lambda x: (x['position'][0][0], x['position'][0][1]))
+        
+        merged = []
+        current_column = [sorted_boxes[0]]
+        
+        for box in sorted_boxes[1:]:
+            # 获取当前列最后一个框和新框的位置
+            last_box = current_column[-1]
+            last_x = last_box['position'][0][0]
+            last_y_bottom = max(p[1] for p in last_box['position'])
+            
+            current_x = box['position'][0][0]
+            current_y_top = min(p[1] for p in box['position'])
+            
+            # 判断是否在同一列
+            x_diff = abs(current_x - last_x)
+            y_diff = current_y_top - last_y_bottom
+            
+            if x_diff < horizontal_threshold and y_diff < vertical_threshold:
+                # 在同一列且垂直距离很近，加入当前列
+                current_column.append(box)
+            else:
+                # 新列或距离太远，合并当前列并开始新列
+                merged.extend(self._merge_column_texts(current_column))
+                current_column = [box]
+        
+        # 合并最后一列
+        merged.extend(self._merge_column_texts(current_column))
+        
+        return merged
+    
+    def _merge_column_texts(self, column_boxes):
+        """
+        合并同一列内的文本框
+        
+        Args:
+            column_boxes: 同一列内的文本框列表
+        
+        Returns:
+            合并后的文本框列表（如果很接近则合并为一个）
+        """
+        if not column_boxes:
+            return []
+        
+        if len(column_boxes) == 1:
+            return column_boxes
+        
+        # 按y坐标排序（从上到下）
+        sorted_column = sorted(column_boxes, key=lambda x: x['position'][0][1])
+        
+        merged = []
+        current = sorted_column[0].copy()
+        
+        for box in sorted_column[1:]:
+            current_bottom = max(p[1] for p in current['position'])
+            next_top = min(p[1] for p in box['position'])
+            
+            # 垂直距离很近，合并文本
+            if next_top - current_bottom < 15:
+                current['text'] += box['text']
+                current['confidence'] = (current['confidence'] + box['confidence']) / 2
+                # 扩展位置框（保持左上角，扩展右下角）
+                current['position'] = [
+                    current['position'][0],  # 左上
+                    current['position'][1],  # 右上
+                    box['position'][2],      # 右下
+                    box['position'][3]       # 左下
+                ]
+            else:
+                merged.append(current)
+                current = box.copy()
+        
+        merged.append(current)
+        return merged
+    
+    def recognize_text(self, image_path, output_file=None, output_image=None, merge_boxes=False):
         """
         识别图片中的文本，并可选翻译和生成处理后的图片
         
@@ -85,6 +193,7 @@ class TextRecognitionService:
             image_path: 图片路径
             output_file: 输出文本文件路径（可选）
             output_image: 输出处理后的图片路径（可选）
+            merge_boxes: 是否合并相邻的文本框（解决文本分段问题）
         
         Returns:
             识别结果列表
@@ -104,10 +213,6 @@ class TextRecognitionService:
         
         # 提取识别结果
         recognized_texts = []
-        print("\n" + "="*60)
-        print("识别结果:")
-        print("="*60)
-        
         for idx, line in enumerate(result[0]):
             # line[0] 是坐标框, line[1] 是 (文本, 置信度)
             text = line[1][0]
@@ -117,10 +222,19 @@ class TextRecognitionService:
                 'confidence': confidence,
                 'position': line[0]
             })
-            
-            # 输出到控制台
-            print(f"{idx + 1}. {text} (置信度: {confidence:.4f})")
         
+        # 如果启用文本框合并，进行合并处理
+        if merge_boxes:
+            original_count = len(recognized_texts)
+            recognized_texts = self.merge_text_boxes(recognized_texts)
+            print(f"文本框合并: {original_count} 个 → {len(recognized_texts)} 个")
+        
+        # 输出识别结果
+        print("\n" + "="*60)
+        print("识别结果:")
+        print("="*60)
+        for idx, item in enumerate(recognized_texts):
+            print(f"{idx + 1}. {item['text']} (置信度: {item['confidence']:.4f})")
         print("="*60)
         
         # 翻译识别到的文本
