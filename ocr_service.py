@@ -47,7 +47,7 @@ class TextRecognitionService:
             try:
                 self.translation_service = TranslationService(
                     api_key=ark_api_key,
-                    model=ark_model or "ep-20251229173446-nv2rg"
+                    model=ark_model
                 )
                 self.source_lang = TranslationService.get_language_code(source_lang)
                 self.target_lang = TranslationService.get_language_code(target_lang)
@@ -283,8 +283,7 @@ def main():
     
     parser.add_argument(
         '--ark-model',
-        default='ep-20251229173446-nv2rg',
-        help='ARK 模型端点，默认为 ep-20251229173446-nv2rg'
+        help=f'ARK 模型端点（可选，默认: {TranslationService.DEFAULT_MODEL}）'
     )
     
     args = parser.parse_args()

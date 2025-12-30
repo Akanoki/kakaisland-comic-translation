@@ -14,21 +14,26 @@ from typing import List, Dict, Optional
 class TranslationService:
     """翻译服务类"""
     
-    def __init__(self, api_key: Optional[str] = None, model: str = "ep-20251229173446-nv2rg"):
+    # 默认配置
+    DEFAULT_MODEL = "ep-20251229173446-nv2rg"
+    DEFAULT_API_URL = "https://ark.cn-beijing.volces.com/api/v3/responses"
+    
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None, api_url: Optional[str] = None):
         """
         初始化翻译服务
         
         Args:
             api_key: ARK API 密钥，如果未提供则从环境变量 ARK_API_KEY 读取
-            model: 使用的模型端点
+            model: 使用的模型端点，默认使用 DEFAULT_MODEL
+            api_url: API 端点 URL，默认使用 DEFAULT_API_URL
         """
         self.api_key = api_key or os.getenv('ARK_API_KEY')
         if not self.api_key:
             raise ValueError("未提供 ARK API 密钥。请设置环境变量 ARK_API_KEY 或通过参数传入")
         
-        self.model = model
-        self.api_url = "https://ark.cn-beijing.volces.com/api/v3/responses"
-        print(f"翻译服务初始化成功 (模型: {model})")
+        self.model = model or self.DEFAULT_MODEL
+        self.api_url = api_url or self.DEFAULT_API_URL
+        print(f"翻译服务初始化成功 (模型: {self.model})")
     
     def translate_text(
         self, 
@@ -55,6 +60,8 @@ class TranslationService:
             "Content-Type": "application/json"
         }
         
+        # ARK API 使用类似 OpenAI Chat Completion 格式的请求结构
+        # 支持通过 translation_options 指定翻译参数
         payload = {
             "model": self.model,
             "input": [
@@ -135,7 +142,7 @@ class TranslationService:
             
             results.append({
                 'original': text,
-                'translated': translated if translated else text,
+                'translated': translated if translated else "",
                 'success': translated is not None
             })
         
