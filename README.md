@@ -25,11 +25,14 @@
 
 - ✅ 支持中文、英文、日文、韩文等多种语言的文本识别
 - ✅ 集成 ARK 翻译 API，支持自动翻译识别文本
+- ✅ **使用 OpenCV 进行图片处理：inpaint 原文本区域，绘制翻译文本**
 - ✅ 识别和翻译结果同时输出到控制台和文件
+- ✅ **生成翻译后的图片，保留原图布局**
 - ✅ 支持单张图片和批量图片处理
 - ✅ 支持 CPU 和 GPU 加速
 - ✅ 提供命令行和 API 两种调用方式
 - ✅ 输出文本位置和置信度信息
+- ✅ 自动字体大小计算，支持自定义字体
 
 ## 环境要求
 
@@ -153,10 +156,22 @@ python3 ocr_service.py -i manga.jpg --translate --lang japan --source-lang ja --
 python3 ocr_service.py -i manga.jpg --translate --lang japan --source-lang ja --target-lang zh --ark-api-key "your-api-key-here"
 ```
 
-### 4. 查看结果
+### 4. 运行识别、翻译并生成处理后的图片
 
-- 控制台会直接显示识别的文本内容
-- 如果指定了 `-o` 参数，结果会保存到指定的文件中
+```bash
+# 识别、翻译并生成处理后的图片（inpaint + 绘制翻译文本）
+export ARK_API_KEY="your-api-key-here"
+python3 ocr_service.py -i manga.jpg --lang japan --translate --source-lang ja --target-lang zh --process-image --output-image manga_translated.jpg
+
+# 批量处理多张图片
+python3 ocr_service.py -i page1.jpg page2.jpg page3.jpg --lang japan --translate --process-image -o output/
+```
+
+### 5. 查看结果
+
+- 控制台会直接显示识别的文本内容和翻译结果
+- 如果指定了 `-o` 参数，文本结果会保存到指定的文件中
+- 如果使用了 `--process-image` 参数，会生成翻译后的图片
 
 ## 使用方法
 
@@ -248,6 +263,31 @@ for result in results:
     print(f"置信度: {result['confidence']}")
 ```
 
+**启用图片处理（inpaint + 绘制翻译）：**
+
+```python
+import os
+from ocr_service import TextRecognitionService
+
+# 初始化服务（启用翻译和图片处理）
+service = TextRecognitionService(
+    lang='japan',
+    enable_translation=True,
+    source_lang='ja',
+    target_lang='zh',
+    enable_image_processing=True,  # 启用图片处理
+    font_path=None,                # 可选，指定字体路径
+    font_size=20                   # 默认字体大小
+)
+
+# 识别、翻译并生成处理后的图片
+results = service.recognize_text(
+    'manga.jpg',
+    output_file='translated.txt',
+    output_image='manga_translated.jpg'  # 输出处理后的图片
+)
+```
+
 ## 配置说明
 
 ### GPU 加速
@@ -256,6 +296,21 @@ for result in results:
 
 ```bash
 python3 ocr_service.py -i image.jpg --gpu
+```
+
+### 图片处理
+
+启用图片处理功能可以：
+1. 使用 inpaint 算法移除原始文本
+2. 在原文本位置绘制翻译文本
+3. 自动计算合适的字体大小
+
+```bash
+# 基本使用
+python3 ocr_service.py -i manga.jpg --translate --process-image --output-image result.jpg
+
+# 指定字体
+python3 ocr_service.py -i manga.jpg --translate --process-image --font-path /path/to/font.ttf --font-size 25
 ```
 
 ### 自定义输出目录
@@ -339,11 +394,52 @@ python3 ocr_service.py -i english_doc.jpg --lang en -o result_en.txt
 python3 ocr_service.py -i japanese_manga.jpg --lang japan -o result_jp.txt
 ```
 
-### 示例 5：批量处理
+### 示例 4：识别、翻译并生成处理后的图片
 
 ```bash
-python3 ocr_service.py -i page1.jpg page2.jpg page3.jpg -o output/
+python3 ocr_service.py -i manga.jpg --lang japan --translate --source-lang ja --target-lang zh --process-image --output-image manga_translated.jpg
 ```
+
+输出示例：
+```
+PaddleOCR 初始化成功 (语言: japan, GPU: False)
+翻译服务初始化成功 (模型: ep-20251229173446-nv2rg)
+翻译功能已启用 (ja -> zh)
+图片处理功能已启用
+
+正在识别图片: manga.jpg
+
+============================================================
+识别结果:
+============================================================
+1. こんにちは (置信度: 0.9856)
+2. ありがとう (置信度: 0.9723)
+============================================================
+
+============================================================
+翻译结果:
+============================================================
+翻译进度: 1/2
+翻译进度: 2/2
+1. 你好
+2. 谢谢
+============================================================
+
+已修复 2 个文本区域
+已绘制 2 条翻译文本
+处理后的图片已保存到: manga_translated.jpg
+```
+
+### 示例 5：批量处理多张图片（识别+翻译+生成图片）
+
+```bash
+python3 ocr_service.py -i page1.jpg page2.jpg page3.jpg --lang japan --translate --source-lang ja --target-lang zh --process-image -o output/
+```
+
+此命令会在 `output/` 目录生成：
+- `page1_ocr.txt`, `page1_translated.jpg`
+- `page2_ocr.txt`, `page2_translated.jpg`
+- `page3_ocr.txt`, `page3_translated.jpg`
 
 ### 示例 6：使用 GPU 加速
 
