@@ -46,9 +46,10 @@ class ImageProcessingService:
             # 填充多边形区域
             cv2.fillPoly(mask, [points], 255)
         
-        # 稍微扩大遮罩区域，确保完全覆盖文本
-        kernel = np.ones((5, 5), np.uint8)
-        mask = cv2.dilate(mask, kernel, iterations=2)
+        # 扩大遮罩区域，确保完全覆盖文本（包括笔画边缘和阴影）
+        # 使用更大的核和更多迭代次数以完全覆盖文本
+        kernel = np.ones((7, 7), np.uint8)
+        mask = cv2.dilate(mask, kernel, iterations=3)
         
         return mask
     
@@ -63,8 +64,9 @@ class ImageProcessingService:
         Returns:
             修复后的图片
         """
-        # 使用 Telea 算法进行修复
-        inpainted = cv2.inpaint(image, mask, inpaintRadius=3, flags=cv2.INPAINT_TELEA)
+        # 使用更大的修复半径以确保完全填充文本区域
+        # Telea 算法对较大区域效果更好
+        inpainted = cv2.inpaint(image, mask, inpaintRadius=7, flags=cv2.INPAINT_TELEA)
         return inpainted
     
     def calculate_font_size(self, box: List[List], text_length: int) -> int:
