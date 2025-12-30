@@ -94,14 +94,15 @@ class TextRecognitionService:
                 print("将继续执行，但不进行图片处理")
                 self.enable_image_processing = False
     
-    def merge_text_boxes(self, text_boxes, vertical_threshold=20, horizontal_threshold=50):
+    def merge_text_boxes(self, text_boxes, distance_threshold=30, reading_order='rtl'):
         """
         合并相邻的文本框，解决文本被拆分成多段的问题
+        使用基于距离的智能合并算法
         
         Args:
             text_boxes: OCR识别的文本框列表
-            vertical_threshold: 垂直方向阈值（像素），小于此值的文本框会被合并
-            horizontal_threshold: 水平方向阈值（像素），用于判断是否在同一列
+            distance_threshold: 距离阈值（像素），距离小于此值的文本框会被合并
+            reading_order: 阅读顺序 'rtl'(从右到左，日文漫画) 或 'ltr'(从左到右)
         
         Returns:
             合并后的文本框列表
@@ -109,83 +110,141 @@ class TextRecognitionService:
         if not text_boxes:
             return []
         
-        # 按位置排序：先按x坐标（列），再按y坐标（行）
-        sorted_boxes = sorted(text_boxes, key=lambda x: (x['position'][0][0], x['position'][0][1]))
+        if len(text_boxes) == 1:
+            return text_boxes
         
+        # 使用并查集进行基于距离的文本框分组
+        n = len(text_boxes)
+        parent = list(range(n))
+        
+        def find(x):
+            if parent[x] != x:
+                parent[x] = find(parent[x])
+            return parent[x]
+        
+        def union(x, y):
+            px, py = find(x), find(y)
+            if px != py:
+                parent[px] = py
+        
+        # 计算两个文本框之间的距离
+        def box_distance(box1, box2):
+            # 获取文本框的中心点和边界
+            def get_bbox(box):
+                x_coords = [p[0] for p in box['position']]
+                y_coords = [p[1] for p in box['position']]
+                return {
+                    'x_min': min(x_coords),
+                    'x_max': max(x_coords),
+                    'y_min': min(y_coords),
+                    'y_max': max(y_coords),
+                    'x_center': sum(x_coords) / 4,
+                    'y_center': sum(y_coords) / 4
+                }
+            
+            bbox1 = get_bbox(box1)
+            bbox2 = get_bbox(box2)
+            
+            # 计算两个框之间的最短距离
+            # 如果两个框重叠或相邻，返回较小的距离
+            x_dist = 0
+            if bbox1['x_max'] < bbox2['x_min']:
+                x_dist = bbox2['x_min'] - bbox1['x_max']
+            elif bbox2['x_max'] < bbox1['x_min']:
+                x_dist = bbox1['x_min'] - bbox2['x_max']
+            
+            y_dist = 0
+            if bbox1['y_max'] < bbox2['y_min']:
+                y_dist = bbox2['y_min'] - bbox1['y_max']
+            elif bbox2['y_max'] < bbox1['y_min']:
+                y_dist = bbox1['y_min'] - bbox2['y_max']
+            
+            # 使用欧氏距离
+            return (x_dist**2 + y_dist**2)**0.5
+        
+        # 根据距离合并文本框
+        for i in range(n):
+            for j in range(i + 1, n):
+                dist = box_distance(text_boxes[i], text_boxes[j])
+                if dist < distance_threshold:
+                    union(i, j)
+        
+        # 将属于同一组的文本框归类
+        groups = {}
+        for i in range(n):
+            root = find(i)
+            if root not in groups:
+                groups[root] = []
+            groups[root].append(text_boxes[i])
+        
+        # 合并每个组内的文本框
         merged = []
-        current_column = [sorted_boxes[0]]
+        for group_boxes in groups.values():
+            merged_box = self._merge_group_texts(group_boxes, reading_order)
+            merged.append(merged_box)
         
-        for box in sorted_boxes[1:]:
-            # 获取当前列最后一个框和新框的位置
-            last_box = current_column[-1]
-            last_x = last_box['position'][0][0]
-            last_y_bottom = max(p[1] for p in last_box['position'])
-            
-            current_x = box['position'][0][0]
-            current_y_top = min(p[1] for p in box['position'])
-            
-            # 判断是否在同一列
-            x_diff = abs(current_x - last_x)
-            y_diff = current_y_top - last_y_bottom
-            
-            if x_diff < horizontal_threshold and y_diff < vertical_threshold:
-                # 在同一列且垂直距离很近，加入当前列
-                current_column.append(box)
-            else:
-                # 新列或距离太远，合并当前列并开始新列
-                merged.extend(self._merge_column_texts(current_column))
-                current_column = [box]
-        
-        # 合并最后一列
-        merged.extend(self._merge_column_texts(current_column))
+        # 根据阅读顺序排序最终结果
+        if reading_order == 'rtl':
+            # 日文漫画：从右到左，从上到下
+            merged.sort(key=lambda x: (-x['position'][0][0], x['position'][0][1]))
+        else:
+            # 从左到右，从上到下
+            merged.sort(key=lambda x: (x['position'][0][0], x['position'][0][1]))
         
         return merged
     
-    def _merge_column_texts(self, column_boxes):
+    def _merge_group_texts(self, group_boxes, reading_order='rtl'):
         """
-        合并同一列内的文本框
+        合并同一组内的文本框
         
         Args:
-            column_boxes: 同一列内的文本框列表
+            group_boxes: 同一组内的文本框列表
+            reading_order: 阅读顺序
         
         Returns:
-            合并后的文本框列表（如果很接近则合并为一个）
+            合并后的单个文本框
         """
-        if not column_boxes:
-            return []
+        if not group_boxes:
+            return None
         
-        if len(column_boxes) == 1:
-            return column_boxes
+        if len(group_boxes) == 1:
+            return group_boxes[0].copy()
         
-        # 按y坐标排序（从上到下）
-        sorted_column = sorted(column_boxes, key=lambda x: x['position'][0][1])
+        # 根据阅读顺序排序组内的文本框
+        if reading_order == 'rtl':
+            # 日文：从右到左，从上到下
+            sorted_boxes = sorted(group_boxes, key=lambda x: (-x['position'][0][0], x['position'][0][1]))
+        else:
+            # 从左到右，从上到下
+            sorted_boxes = sorted(group_boxes, key=lambda x: (x['position'][0][0], x['position'][0][1]))
         
-        merged = []
-        current = sorted_column[0].copy()
+        # 合并文本和计算平均置信度
+        merged_text = ''.join([box['text'] for box in sorted_boxes])
+        avg_confidence = sum([box['confidence'] for box in sorted_boxes]) / len(sorted_boxes)
         
-        for box in sorted_column[1:]:
-            current_bottom = max(p[1] for p in current['position'])
-            next_top = min(p[1] for p in box['position'])
-            
-            # 垂直距离很近，合并文本
-            if next_top - current_bottom < 15:
-                current['text'] += box['text']
-                current['confidence'] = (current['confidence'] + box['confidence']) / 2
-                # 扩展位置框（保持左上角，扩展右下角）
-                current['position'] = [
-                    current['position'][0],  # 左上
-                    current['position'][1],  # 右上
-                    box['position'][2],      # 右下
-                    box['position'][3]       # 左下
-                ]
-            else:
-                merged.append(current)
-                current = box.copy()
+        # 计算合并后的位置框（包含所有框的最小外接矩形）
+        all_points = []
+        for box in sorted_boxes:
+            all_points.extend(box['position'])
         
-        merged.append(current)
-        return merged
+        x_coords = [p[0] for p in all_points]
+        y_coords = [p[1] for p in all_points]
+        
+        merged_position = [
+            [min(x_coords), min(y_coords)],  # 左上
+            [max(x_coords), min(y_coords)],  # 右上
+            [max(x_coords), max(y_coords)],  # 右下
+            [min(x_coords), max(y_coords)]   # 左下
+        ]
+        
+        return {
+            'text': merged_text,
+            'confidence': avg_confidence,
+            'position': merged_position
+        }
     
-    def recognize_text(self, image_path, output_file=None, output_image=None, merge_boxes=False):
+    def recognize_text(self, image_path, output_file=None, output_image=None, merge_boxes=False, 
+                       merge_distance=30, reading_order='rtl'):
         """
         识别图片中的文本，并可选翻译和生成处理后的图片
         
@@ -194,6 +253,8 @@ class TextRecognitionService:
             output_file: 输出文本文件路径（可选）
             output_image: 输出处理后的图片路径（可选）
             merge_boxes: 是否合并相邻的文本框（解决文本分段问题）
+            merge_distance: 合并距离阈值（像素），距离小于此值的文本框会被合并
+            reading_order: 阅读顺序 'rtl'(从右到左，日文漫画) 或 'ltr'(从左到右)
         
         Returns:
             识别结果列表
@@ -226,8 +287,12 @@ class TextRecognitionService:
         # 如果启用文本框合并，进行合并处理
         if merge_boxes:
             original_count = len(recognized_texts)
-            recognized_texts = self.merge_text_boxes(recognized_texts)
-            print(f"文本框合并: {original_count} 个 → {len(recognized_texts)} 个")
+            recognized_texts = self.merge_text_boxes(
+                recognized_texts, 
+                distance_threshold=merge_distance,
+                reading_order=reading_order
+            )
+            print(f"文本框合并: {original_count} 个 → {len(recognized_texts)} 个 (距离阈值: {merge_distance}px, 阅读顺序: {'从右到左' if reading_order == 'rtl' else '从左到右'})")
         
         # 输出识别结果
         print("\n" + "="*60)

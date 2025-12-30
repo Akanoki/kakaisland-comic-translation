@@ -274,11 +274,13 @@ def example_enhanced_manga_recognition():
     # 增强检测参数 - 提高识别准确率
     # ========================================
     use_enhanced_detection = True    # 启用增强检测
-    det_db_thresh = 0.01              # 检测阈值（降低以检测更多文本，默认0.3）
-    det_db_box_thresh = 0.01          # 文本框阈值（降低以减少漏检，默认0.6）
-    det_db_unclip_ratio = 1.7        # 扩大检测框（增大以减少漏字，默认1.5）
+    det_db_thresh = 0.2              # 检测阈值（降低以检测更多文本，默认0.3）
+    det_db_box_thresh = 0.4          # 文本框阈值（降低以减少漏检，默认0.6）
+    det_db_unclip_ratio = 2.0        # 扩大检测框（增大以减少漏字，默认1.5）
     
     merge_boxes = True               # 启用文本框合并（解决拆分问题）
+    merge_distance = 50              # 合并距离阈值（像素），距离小于此值的文本框会被合并
+    reading_order = 'rtl'            # 阅读顺序：'rtl'=从右到左（日文漫画），'ltr'=从左到右
     
     # ========================================
     # 执行处理
@@ -293,6 +295,9 @@ def example_enhanced_manga_recognition():
         print(f"    - det_db_box_thresh: {det_db_box_thresh} (降低可减少漏检)")
         print(f"    - det_db_unclip_ratio: {det_db_unclip_ratio} (增大可减少漏字)")
     print(f"  文本框合并: {'启用' if merge_boxes else '禁用'}")
+    if merge_boxes:
+        print(f"    - 合并距离: {merge_distance}px (距离小于此值的文本框会合并)")
+        print(f"    - 阅读顺序: {'从右到左（日文漫画）' if reading_order == 'rtl' else '从左到右'}")
     print(f"  翻译: {source_lang} → {target_lang}\n")
     
     # 检查图片
@@ -331,7 +336,9 @@ def example_enhanced_manga_recognition():
             image_path,
             output_file=output_text_file,
             output_image=output_image_file,
-            merge_boxes=merge_boxes  # 启用文本框合并
+            merge_boxes=merge_boxes,         # 启用文本框合并
+            merge_distance=merge_distance,   # 合并距离阈值
+            reading_order=reading_order      # 阅读顺序
         )
         
         # 显示结果摘要
@@ -358,10 +365,16 @@ def example_enhanced_manga_recognition():
         print("\n" + "=" * 60)
         print("参数调优建议：")
         print("=" * 60)
+        print("检测参数调优：")
         print("• 如果还有漏字：进一步降低 det_db_thresh (0.2 → 0.15)")
         print("• 如果检测太多噪点：提高 det_db_box_thresh (0.4 → 0.5)")
         print("• 如果字被截断：增大 det_db_unclip_ratio (2.0 → 2.5)")
-        print("• 如果文本合并不够：在 merge_text_boxes 中调整 vertical_threshold")
+        print("\n文本合并调优：")
+        print("• 如果合并太多（不该合的合了）：降低 merge_distance (50 → 30)")
+        print("• 如果合并太少（该合的没合）：增大 merge_distance (50 → 80)")
+        print("• 阅读顺序错误：检查 reading_order 参数")
+        print("  - 日文漫画用 'rtl' (从右到左)")
+        print("  - 中英文用 'ltr' (从左到右)")
         print("\n")
         
     except Exception as e:
