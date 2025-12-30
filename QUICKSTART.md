@@ -1,6 +1,6 @@
 # 快速开始指南
 
-本指南帮助您在 5 分钟内完成环境配置并运行第一个文本识别任务。
+本指南帮助您在 5 分钟内完成环境配置并运行第一个文本识别和翻译任务。
 
 ## 第一步：安装 Python
 
@@ -41,13 +41,25 @@ pip3 install paddlepaddle-gpu==2.5.0.post112 -f https://www.paddlepaddle.org.cn/
 pip3 install -r requirements.txt
 ```
 
-## 第四步：验证安装
+## 第四步：配置 ARK API 密钥（可选，仅翻译功能需要）
+
+如果需要使用翻译功能，设置环境变量：
+
+```bash
+# Linux/Mac
+export ARK_API_KEY="your-api-key-here"
+
+# Windows
+set ARK_API_KEY=your-api-key-here
+```
+
+## 第五步：验证安装
 
 ```bash
 python3 -c "from paddleocr import PaddleOCR; print('安装成功！')"
 ```
 
-## 第五步：运行第一个识别任务
+## 第六步：运行第一个识别任务
 
 ### 准备测试图片
 
@@ -63,10 +75,17 @@ python3 ocr_service.py -i test.jpg
 python3 ocr_service.py -i test.jpg -o result.txt
 ```
 
+### 运行识别+翻译（需要配置 ARK API 密钥）
+
+```bash
+# 识别日文漫画并翻译成中文
+python3 ocr_service.py -i manga.jpg --lang japan --translate --source-lang ja --target-lang zh -o result.txt
+```
+
 ### 查看结果
 
-- 控制台会显示识别的文本
-- `result.txt` 包含详细的识别结果
+- 控制台会显示识别的文本和翻译结果
+- `result.txt` 包含详细的识别和翻译结果
 
 ## 常用命令
 
@@ -76,6 +95,9 @@ python3 ocr_service.py -i chinese.jpg
 
 # 识别英文图片
 python3 ocr_service.py -i english.jpg --lang en
+
+# 识别日文并翻译成中文
+python3 ocr_service.py -i japanese.jpg --lang japan --translate --source-lang ja --target-lang zh
 
 # 批量识别
 python3 ocr_service.py -i img1.jpg img2.jpg img3.jpg -o output/
