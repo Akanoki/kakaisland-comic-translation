@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 PaddleOCR 文本识别服务
-基于 PaddleOCR 实现图片中的文本识别功能，并支持 ARK 翻译
+基于 PaddleOCR 实现图片中的文本识别功能，并支持 ARK 翻译和图片处理
 """
 
 import os
@@ -11,6 +11,7 @@ import argparse
 from datetime import datetime
 from paddleocr import PaddleOCR
 from translation_service import TranslationService
+from image_processing_service import ImageProcessingService
 
 
 class TextRecognitionService:
@@ -18,9 +19,10 @@ class TextRecognitionService:
     
     def __init__(self, lang='japan', use_angle_cls=True, use_gpu=False, 
                  enable_translation=False, source_lang='ja', target_lang='zh',
-                 ark_api_key=None, ark_model=None):
+                 ark_api_key=None, ark_model=None, enable_image_processing=False,
+                 font_path=None, font_size=20):
         """
-        初始化 PaddleOCR 和翻译服务
+        初始化 PaddleOCR、翻译服务和图片处理服务
         
         Args:
             lang: 语言类型，默认为日文 'japan'，也支持 'ch', 'en' 等
@@ -31,6 +33,9 @@ class TextRecognitionService:
             target_lang: 目标语言代码（用于翻译）
             ark_api_key: ARK API 密钥
             ark_model: ARK 模型端点
+            enable_image_processing: 是否启用图片处理（inpaint + 绘制翻译文本）
+            font_path: 字体文件路径（用于绘制翻译文本）
+            font_size: 默认字体大小
         """
         self.ocr = PaddleOCR(
             lang=lang,
@@ -56,14 +61,30 @@ class TextRecognitionService:
                 print(f"警告: 翻译服务初始化失败: {str(e)}")
                 print("将继续执行，但不进行翻译")
                 self.enable_translation = False
+        
+        # 初始化图片处理服务
+        self.enable_image_processing = enable_image_processing
+        self.image_processor = None
+        if enable_image_processing:
+            try:
+                self.image_processor = ImageProcessingService(
+                    font_path=font_path,
+                    font_size=font_size
+                )
+                print(f"图片处理功能已启用")
+            except Exception as e:
+                print(f"警告: 图片处理服务初始化失败: {str(e)}")
+                print("将继续执行，但不进行图片处理")
+                self.enable_image_processing = False
     
-    def recognize_text(self, image_path, output_file=None):
+    def recognize_text(self, image_path, output_file=None, output_image=None):
         """
-        识别图片中的文本，并可选翻译
+        识别图片中的文本，并可选翻译和生成处理后的图片
         
         Args:
             image_path: 图片路径
-            output_file: 输出文件路径（可选）
+            output_file: 输出文本文件路径（可选）
+            output_image: 输出处理后的图片路径（可选）
         
         Returns:
             识别结果列表
@@ -129,6 +150,27 @@ class TextRecognitionService:
             
             print("="*60)
         
+        # 如果启用图片处理且有翻译结果，生成处理后的图片
+        if self.enable_image_processing and self.image_processor and self.enable_translation:
+            if output_image:
+                output_image_path = output_image
+            else:
+                # 自动生成输出图片路径
+                base_name = os.path.splitext(os.path.basename(image_path))[0]
+                output_dir = os.path.dirname(image_path) or '.'
+                output_image_path = os.path.join(output_dir, f"{base_name}_translated.jpg")
+            
+            try:
+                self.image_processor.process_image_with_translation(
+                    image_path,
+                    recognized_texts,
+                    output_image_path,
+                    inpaint=True,
+                    draw_translated=True
+                )
+            except Exception as e:
+                print(f"警告: 图片处理失败: {str(e)}")
+        
         # 如果指定了输出文件，则保存结果
         if output_file:
             self._save_to_file(image_path, recognized_texts, output_file)
@@ -189,14 +231,20 @@ class TextRecognitionService:
         
         for image_path in image_paths:
             output_file = None
+            output_image = None
+            
             if output_dir:
                 # 为每张图片生成对应的输出文件名
                 basename = os.path.basename(image_path)
                 name_without_ext = os.path.splitext(basename)[0]
                 output_file = os.path.join(output_dir, f"{name_without_ext}_ocr.txt")
+                
+                # 如果启用图片处理，也生成输出图片路径
+                if self.enable_image_processing:
+                    output_image = os.path.join(output_dir, f"{name_without_ext}_translated.jpg")
             
             try:
-                results = self.recognize_text(image_path, output_file)
+                results = self.recognize_text(image_path, output_file, output_image)
                 all_results[image_path] = results
             except Exception as e:
                 print(f"处理图片 {image_path} 时出错: {str(e)}")
@@ -208,7 +256,7 @@ class TextRecognitionService:
 def main():
     """命令行主入口"""
     parser = argparse.ArgumentParser(
-        description='PaddleOCR 文本识别与翻译服务',
+        description='PaddleOCR 文本识别、翻译与图片处理服务',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用示例:
@@ -221,8 +269,11 @@ def main():
   # 识别并翻译（需要设置 ARK_API_KEY 环境变量）
   python ocr_service.py -i manga.jpg --translate --source-lang ja --target-lang zh
   
-  # 批量识别多张图片
-  python ocr_service.py -i img1.jpg img2.jpg img3.jpg -o output/
+  # 识别、翻译并生成处理后的图片（inpaint + 绘制翻译文本）
+  python ocr_service.py -i manga.jpg --translate --source-lang ja --target-lang zh --process-image --output-image result.jpg
+  
+  # 批量处理（识别、翻译、生成图片）
+  python ocr_service.py -i img1.jpg img2.jpg img3.jpg --translate --process-image -o output/
   
   # 使用英文识别
   python ocr_service.py -i image.jpg --lang en
@@ -242,6 +293,11 @@ def main():
     parser.add_argument(
         '-o', '--output',
         help='输出文件/目录路径（单图片时为文件，多图片时为目录）'
+    )
+    
+    parser.add_argument(
+        '--output-image',
+        help='输出处理后的图片路径（仅单图片时有效，需配合 --process-image）'
     )
     
     parser.add_argument(
@@ -286,6 +342,25 @@ def main():
         help=f'ARK 模型端点（可选，默认: {TranslationService.DEFAULT_MODEL}）'
     )
     
+    # 图片处理相关参数
+    parser.add_argument(
+        '--process-image',
+        action='store_true',
+        help='启用图片处理功能（inpaint 原文本区域并绘制翻译文本，需配合 --translate 使用）'
+    )
+    
+    parser.add_argument(
+        '--font-path',
+        help='字体文件路径（用于绘制翻译文本，可选）'
+    )
+    
+    parser.add_argument(
+        '--font-size',
+        type=int,
+        default=20,
+        help='默认字体大小（默认: 20）'
+    )
+    
     args = parser.parse_args()
     
     # 初始化服务
@@ -298,7 +373,10 @@ def main():
             source_lang=args.source_lang,
             target_lang=args.target_lang,
             ark_api_key=args.ark_api_key,
-            ark_model=args.ark_model
+            ark_model=args.ark_model,
+            enable_image_processing=args.process_image,
+            font_path=args.font_path,
+            font_size=args.font_size
         )
     except Exception as e:
         print(f"初始化服务失败: {str(e)}")
@@ -311,7 +389,11 @@ def main():
     if len(image_paths) == 1:
         # 单张图片
         try:
-            service.recognize_text(image_paths[0], args.output)
+            service.recognize_text(
+                image_paths[0], 
+                output_file=args.output,
+                output_image=args.output_image
+            )
         except Exception as e:
             print(f"识别失败: {str(e)}")
             sys.exit(1)
