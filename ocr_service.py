@@ -48,14 +48,14 @@ class TextRecognitionService:
             correction_confidence_threshold: 纠错置信度阈值
             custom_correction_rules: 自定义纠错规则字典
         """
-        # 标准化语言参数
+        # 标准化语言参数 - PaddleOCR 使用 'japan' 而不是 'ja'
         lang_map = {
-            'japan': 'ja',
-            'japanese': 'ja',
+            'ja': 'japan',
+            'japanese': 'japan',
+            'japan': 'japan',
             'china': 'ch',
             'chinese': 'ch',
             'ch': 'ch',
-            'ja': 'ja',
             'en': 'en',
             'english': 'en'
         }
