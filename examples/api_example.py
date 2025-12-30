@@ -20,10 +20,10 @@ def example_single_image():
     print("=" * 60)
     
     # 初始化服务
-    service = TextRecognitionService(lang='ch', use_gpu=False)
+    service = TextRecognitionService(lang='japan', use_gpu=False)
     
     # 识别图片
-    image_path = "your_image.jpg"  # 替换为你的图片路径
+    image_path = "C:\\Users\\ADMIN\\Desktop\\kakaisland\\01_009.jpg"  # 替换为你的图片路径
     
     # 如果图片不存在，跳过此示例
     if not os.path.exists(image_path):
@@ -155,7 +155,7 @@ def main():
     print("提示：请先准备好测试图片，并修改示例代码中的图片路径\n")
     
     # 运行示例（实际使用时取消注释）
-    # example_single_image()
+    example_single_image()
     # example_batch_images()
     # example_multilingual()
     # example_custom_processing()

@@ -15,7 +15,7 @@ from paddleocr import PaddleOCR
 class TextRecognitionService:
     """文本识别服务类"""
     
-    def __init__(self, lang='ch', use_angle_cls=True, use_gpu=False):
+    def __init__(self, lang='japan', use_angle_cls=True, use_gpu=False):
         """
         初始化 PaddleOCR
         
