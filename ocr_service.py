@@ -10,7 +10,6 @@ import sys
 import argparse
 from datetime import datetime
 from paddleocr import PaddleOCR
-import cv2
 
 
 class TextRecognitionService:
