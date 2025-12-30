@@ -256,10 +256,10 @@ def example_enhanced_manga_recognition():
     # ========================================
     
     # ARK API 密钥
-    ARK_API_KEY = "your-api-key-here"  # 替换为你的实际 API 密钥
+    ARK_API_KEY = "6ecd7934-fd45-4484-8f40-42a2ae4c94db"  # 替换为你的实际 API 密钥
     
     # 图片路径
-    image_path = "manga.jpg"  # 替换为你的漫画图片路径
+    image_path = "C:\\Users\\ADMIN\\Desktop\\kakaisland\\01_111.jpg"  # 替换为你的漫画图片路径
     
     # 输出路径
     output_text_file = "manga_enhanced_result.txt"
@@ -274,9 +274,9 @@ def example_enhanced_manga_recognition():
     # 增强检测参数 - 提高识别准确率
     # ========================================
     use_enhanced_detection = True    # 启用增强检测
-    det_db_thresh = 0.2              # 检测阈值（降低以检测更多文本，默认0.3）
-    det_db_box_thresh = 0.4          # 文本框阈值（降低以减少漏检，默认0.6）
-    det_db_unclip_ratio = 2.0        # 扩大检测框（增大以减少漏字，默认1.5）
+    det_db_thresh = 0.01              # 检测阈值（降低以检测更多文本，默认0.3）
+    det_db_box_thresh = 0.01          # 文本框阈值（降低以减少漏检，默认0.6）
+    det_db_unclip_ratio = 1.7        # 扩大检测框（增大以减少漏字，默认1.5）
     
     merge_boxes = True               # 启用文本框合并（解决拆分问题）
     
@@ -515,7 +515,7 @@ def main():
     # example_complete_workflow_with_api_key()
     
     # 最新推荐 - 增强型漫画识别
-    # example_enhanced_manga_recognition()
+    example_enhanced_manga_recognition()
     
     print("=" * 60)
     print("使用说明")
