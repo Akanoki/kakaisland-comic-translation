@@ -9,22 +9,24 @@ import os
 import sys
 import argparse
 from datetime import datetime
-from paddleocr import PPStructure
+from paddleocr import PaddleOCR
 from translation_service import TranslationService
 from image_processing_service import ImageProcessingService
 import numpy as np
 
 
 class TextRecognitionService:
-    """文本识别服务类 - 使用模块化的检测和识别组件"""
+    """文本识别服务类 - 使用 PP-OCRv5_server 模型"""
     
     def __init__(self, lang='japan', use_angle_cls=True, use_gpu=False, 
                  enable_translation=False, source_lang='ja', target_lang='zh',
                  ark_api_key=None, ark_model=None, enable_image_processing=False,
                  font_path=None, font_size=20, use_enhanced_detection=False,
-                 det_db_thresh=0.3, det_db_box_thresh=0.5, det_db_unclip_ratio=1.6):
+                 det_db_thresh=0.3, det_db_box_thresh=0.5, det_db_unclip_ratio=1.6,
+                 enable_char_correction=False, correction_confidence_threshold=0.7,
+                 custom_correction_rules=None):
         """
-        初始化模块化 PaddleOCR（分离检测和识别）、翻译服务和图片处理服务
+        初始化 PaddleOCR PP-OCRv5_server、翻译服务和图片处理服务
         
         Args:
             lang: 语言类型，默认为日文 'japan'，也支持 'ch', 'en' 等
@@ -42,40 +44,72 @@ class TextRecognitionService:
             det_db_thresh: 检测阈值（默认0.3，降低可检测更多文本）
             det_db_box_thresh: 文本框阈值（默认0.5，降低可减少漏检）
             det_db_unclip_ratio: 扩大检测框（默认1.6，增大可减少漏字）
+            enable_char_correction: 是否启用字符纠错（修正形近字误判）
+            correction_confidence_threshold: 纠错置信度阈值
+            custom_correction_rules: 自定义纠错规则字典
         """
-        # 初始化文本检测模块（独立）
-        det_params = {
-            'det': True,
-            'rec': False,
-            'use_angle_cls': False,
+        # 标准化语言参数
+        lang_map = {
+            'japan': 'ja',
+            'japanese': 'ja',
+            'china': 'ch',
+            'chinese': 'ch',
+            'ch': 'ch',
+            'ja': 'ja',
+            'en': 'en',
+            'english': 'en'
+        }
+        ocr_lang = lang_map.get(lang.lower(), lang)
+        
+        # 初始化 PaddleOCR with PP-OCRv5_server 模型
+        ocr_params = {
+            'lang': ocr_lang,
+            'use_angle_cls': use_angle_cls,
             'use_gpu': use_gpu,
-            'show_log': False
+            'show_log': False,
+            'det_model_dir': None,  # 使用 PP-OCRv5_server_det
+            'rec_model_dir': None,  # 使用 PP-OCRv5_server_rec
         }
         
+        # 如果启用增强检测，添加检测参数
         if use_enhanced_detection:
-            det_params.update({
+            ocr_params.update({
                 'det_db_thresh': det_db_thresh,
                 'det_db_box_thresh': det_db_box_thresh,
                 'det_db_unclip_ratio': det_db_unclip_ratio
             })
             print(f"启用增强检测参数: thresh={det_db_thresh}, box_thresh={det_db_box_thresh}, unclip_ratio={det_db_unclip_ratio}")
         
-        self.text_detector = PPStructure(**det_params)
+        try:
+            self.ocr = PaddleOCR(**ocr_params)
+            print(f"PaddleOCR PP-OCRv5_server 初始化成功 (语言: {ocr_lang}, GPU: {use_gpu})")
+        except Exception as e:
+            print(f"警告: 使用默认参数初始化 PaddleOCR: {str(e)}")
+            # 回退到基础配置
+            self.ocr = PaddleOCR(
+                lang=ocr_lang,
+                use_angle_cls=use_angle_cls,
+                use_gpu=use_gpu,
+                show_log=False
+            )
+            print(f"PaddleOCR 初始化成功（默认配置）")
+        
         self.use_enhanced_detection = use_enhanced_detection
-        print(f"文本检测模块初始化成功 (GPU: {use_gpu})")
         
-        # 初始化文本识别模块（独立）
-        rec_params = {
-            'det': False,
-            'rec': True,
-            'lang': lang,
-            'use_angle_cls': use_angle_cls,
-            'use_gpu': use_gpu,
-            'show_log': False
-        }
-        
-        self.text_recognizer = PPStructure(**rec_params)
-        print(f"文本识别模块初始化成功 (语言: {lang}, GPU: {use_gpu})")
+        # 初始化字符纠错服务
+        self.enable_char_correction = enable_char_correction
+        self.char_corrector = None
+        if enable_char_correction:
+            try:
+                from character_correction_service import CharacterCorrectionService
+                self.char_corrector = CharacterCorrectionService(
+                    confidence_threshold=correction_confidence_threshold,
+                    custom_rules=custom_correction_rules
+                )
+                print(f"字符纠错功能已启用 (阈值: {correction_confidence_threshold})")
+            except Exception as e:
+                print(f"警告: 字符纠错服务初始化失败: {str(e)}")
+                self.enable_char_correction = False
         
         # 初始化翻译服务
         self.enable_translation = enable_translation
@@ -280,57 +314,34 @@ class TextRecognitionService:
         
         print(f"\n正在识别图片: {image_path}")
         
-        # 步骤1: 使用检测模块检测文本区域
-        print("步骤1: 检测文本区域...")
-        det_result = self.text_detector(image_path)
+        # 使用 PaddleOCR 进行文本识别（包含检测和识别）
+        print("正在进行文本检测和识别...")
+        result = self.ocr.ocr(image_path, cls=True)
         
-        if not det_result or len(det_result) == 0:
-            print("未检测到文本区域")
+        if not result or len(result) == 0 or not result[0]:
+            print("未检测到文本")
             return []
         
-        # 提取检测到的文本框坐标
-        detected_boxes = []
-        for item in det_result:
-            if 'bbox' in item:
-                detected_boxes.append(item['bbox'])
-        
-        print(f"检测到 {len(detected_boxes)} 个文本区域")
-        
-        # 步骤2: 使用识别模块识别每个文本区域的内容
-        print("步骤2: 识别文本内容...")
-        import cv2
-        img = cv2.imread(image_path)
-        
+        # 解析OCR结果
         recognized_texts = []
-        for idx, box in enumerate(detected_boxes):
-            # 裁剪文本区域
-            # box 格式: [x0, y0, x1, y1]
-            x0, y0, x1, y1 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
-            text_region = img[y0:y1, x0:x1]
+        for line in result[0]:
+            position = line[0]  # 四边形坐标 [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
+            text_info = line[1]  # (text, confidence)
+            text = text_info[0]
+            confidence = text_info[1]
             
-            # 识别文本
-            rec_result = self.text_recognizer(text_region)
-            
-            if rec_result and len(rec_result) > 0:
-                # 提取识别结果
-                text = rec_result[0].get('text', '')
-                confidence = rec_result[0].get('score', 0.0)
-                
-                # 转换坐标格式为四边形
-                position = [
-                    [x0, y0],  # 左上
-                    [x1, y0],  # 右上
-                    [x1, y1],  # 右下
-                    [x0, y1]   # 左下
-                ]
-                
-                recognized_texts.append({
-                    'text': text,
-                    'confidence': confidence,
-                    'position': position
-                })
+            recognized_texts.append({
+                'text': text,
+                'confidence': confidence,
+                'position': position
+            })
         
         print(f"成功识别 {len(recognized_texts)} 个文本")
+        
+        # 字符纠错（如果启用）
+        if self.enable_char_correction and self.char_corrector:
+            print("正在进行字符纠错...")
+            recognized_texts = self.char_corrector.correct_batch(recognized_texts)
         
         # 如果启用文本框合并，进行合并处理
         if merge_boxes:
