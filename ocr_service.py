@@ -9,13 +9,14 @@ import os
 import sys
 import argparse
 from datetime import datetime
-from paddleocr import PaddleOCR
+from paddleocr import PPStructure
 from translation_service import TranslationService
 from image_processing_service import ImageProcessingService
+import numpy as np
 
 
 class TextRecognitionService:
-    """文本识别服务类"""
+    """文本识别服务类 - 使用模块化的检测和识别组件"""
     
     def __init__(self, lang='japan', use_angle_cls=True, use_gpu=False, 
                  enable_translation=False, source_lang='ja', target_lang='zh',
@@ -23,7 +24,7 @@ class TextRecognitionService:
                  font_path=None, font_size=20, use_enhanced_detection=False,
                  det_db_thresh=0.3, det_db_box_thresh=0.5, det_db_unclip_ratio=1.6):
         """
-        初始化 PaddleOCR、翻译服务和图片处理服务
+        初始化模块化 PaddleOCR（分离检测和识别）、翻译服务和图片处理服务
         
         Args:
             lang: 语言类型，默认为日文 'japan'，也支持 'ch', 'en' 等
@@ -42,25 +43,39 @@ class TextRecognitionService:
             det_db_box_thresh: 文本框阈值（默认0.5，降低可减少漏检）
             det_db_unclip_ratio: 扩大检测框（默认1.6，增大可减少漏字）
         """
-        # 根据是否使用增强检测设置参数
-        ocr_params = {
-            'lang': lang,
-            'use_angle_cls': use_angle_cls,
+        # 初始化文本检测模块（独立）
+        det_params = {
+            'det': True,
+            'rec': False,
+            'use_angle_cls': False,
             'use_gpu': use_gpu,
             'show_log': False
         }
         
         if use_enhanced_detection:
-            ocr_params.update({
+            det_params.update({
                 'det_db_thresh': det_db_thresh,
                 'det_db_box_thresh': det_db_box_thresh,
                 'det_db_unclip_ratio': det_db_unclip_ratio
             })
             print(f"启用增强检测参数: thresh={det_db_thresh}, box_thresh={det_db_box_thresh}, unclip_ratio={det_db_unclip_ratio}")
         
-        self.ocr = PaddleOCR(**ocr_params)
+        self.text_detector = PPStructure(**det_params)
         self.use_enhanced_detection = use_enhanced_detection
-        print(f"PaddleOCR 初始化成功 (语言: {lang}, GPU: {use_gpu})")
+        print(f"文本检测模块初始化成功 (GPU: {use_gpu})")
+        
+        # 初始化文本识别模块（独立）
+        rec_params = {
+            'det': False,
+            'rec': True,
+            'lang': lang,
+            'use_angle_cls': use_angle_cls,
+            'use_gpu': use_gpu,
+            'show_log': False
+        }
+        
+        self.text_recognizer = PPStructure(**rec_params)
+        print(f"文本识别模块初始化成功 (语言: {lang}, GPU: {use_gpu})")
         
         # 初始化翻译服务
         self.enable_translation = enable_translation
@@ -265,24 +280,57 @@ class TextRecognitionService:
         
         print(f"\n正在识别图片: {image_path}")
         
-        # 执行OCR识别
-        result = self.ocr.ocr(image_path, cls=True)
+        # 步骤1: 使用检测模块检测文本区域
+        print("步骤1: 检测文本区域...")
+        det_result = self.text_detector(image_path)
         
-        if not result or not result[0]:
-            print("未检测到文本内容")
+        if not det_result or len(det_result) == 0:
+            print("未检测到文本区域")
             return []
         
-        # 提取识别结果
+        # 提取检测到的文本框坐标
+        detected_boxes = []
+        for item in det_result:
+            if 'bbox' in item:
+                detected_boxes.append(item['bbox'])
+        
+        print(f"检测到 {len(detected_boxes)} 个文本区域")
+        
+        # 步骤2: 使用识别模块识别每个文本区域的内容
+        print("步骤2: 识别文本内容...")
+        import cv2
+        img = cv2.imread(image_path)
+        
         recognized_texts = []
-        for idx, line in enumerate(result[0]):
-            # line[0] 是坐标框, line[1] 是 (文本, 置信度)
-            text = line[1][0]
-            confidence = line[1][1]
-            recognized_texts.append({
-                'text': text,
-                'confidence': confidence,
-                'position': line[0]
-            })
+        for idx, box in enumerate(detected_boxes):
+            # 裁剪文本区域
+            # box 格式: [x0, y0, x1, y1]
+            x0, y0, x1, y1 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
+            text_region = img[y0:y1, x0:x1]
+            
+            # 识别文本
+            rec_result = self.text_recognizer(text_region)
+            
+            if rec_result and len(rec_result) > 0:
+                # 提取识别结果
+                text = rec_result[0].get('text', '')
+                confidence = rec_result[0].get('score', 0.0)
+                
+                # 转换坐标格式为四边形
+                position = [
+                    [x0, y0],  # 左上
+                    [x1, y0],  # 右上
+                    [x1, y1],  # 右下
+                    [x0, y1]   # 左下
+                ]
+                
+                recognized_texts.append({
+                    'text': text,
+                    'confidence': confidence,
+                    'position': position
+                })
+        
+        print(f"成功识别 {len(recognized_texts)} 个文本")
         
         # 如果启用文本框合并，进行合并处理
         if merge_boxes:
