@@ -245,17 +245,137 @@ def example_custom_processing_with_translation():
     print("\n自定义双语结果已保存到 custom_bilingual_output.txt\n")
 
 
+def example_complete_workflow_with_api_key():
+    """示例6: 完整工作流（设置 API 密钥、识别、翻译、生成图片）- 推荐使用"""
+    print("=" * 60)
+    print("示例 6: 完整工作流 - 识别、翻译、生成处理后的图片")
+    print("=" * 60)
+    
+    # ========================================
+    # 配置区域 - 在此处直接设置参数
+    # ========================================
+    
+    # ARK API 密钥 - 直接在这里设置，无需环境变量
+    ARK_API_KEY = "your-api-key-here"  # 替换为你的实际 API 密钥
+    
+    # 图片路径
+    image_path = "manga.jpg"  # 替换为你的图片路径
+    
+    # 输出路径
+    output_text_file = "output_result.txt"  # 文本结果输出路径
+    output_image_file = "manga_translated.jpg"  # 处理后的图片输出路径
+    
+    # 语言设置
+    ocr_lang = 'japan'      # OCR 识别语言：'ch'(中文), 'en'(英文), 'japan'(日文), 'korean'(韩文)
+    source_lang = 'ja'      # 翻译源语言：'zh'(中文), 'en'(英文), 'ja'(日文), 'ko'(韩文)
+    target_lang = 'zh'      # 翻译目标语言：'zh'(中文), 'en'(英文), 'ja'(日文), 'ko'(韩文)
+    
+    # 字体设置（可选）
+    font_path = None        # 自定义字体路径，None 则使用系统默认字体
+    font_size = 20          # 字体大小
+    
+    # ========================================
+    # 执行处理
+    # ========================================
+    
+    print(f"\n配置信息:")
+    print(f"  图片路径: {image_path}")
+    print(f"  OCR 语言: {ocr_lang}")
+    print(f"  翻译: {source_lang} → {target_lang}")
+    print(f"  输出文本: {output_text_file}")
+    print(f"  输出图片: {output_image_file}\n")
+    
+    # 检查图片是否存在
+    if not os.path.exists(image_path):
+        print(f"错误: 图片文件不存在: {image_path}")
+        print("请修改上面的 image_path 变量，指向实际的图片路径\n")
+        return
+    
+    # 检查 API 密钥
+    if ARK_API_KEY == "your-api-key-here":
+        print("警告: 请先设置 ARK_API_KEY 变量为你的实际 API 密钥")
+        print("修改上面的 ARK_API_KEY = 'your-api-key-here' 这一行\n")
+        return
+    
+    try:
+        # 初始化服务
+        print("正在初始化服务...")
+        service = TextRecognitionService(
+            lang=ocr_lang,
+            use_gpu=False,
+            enable_translation=True,        # 启用翻译
+            source_lang=source_lang,
+            target_lang=target_lang,
+            ark_api_key=ARK_API_KEY,        # 直接传入 API 密钥
+            enable_image_processing=True,   # 启用图片处理
+            font_path=font_path,
+            font_size=font_size
+        )
+        
+        # 执行识别、翻译和图片处理
+        print("\n开始处理...")
+        results = service.recognize_text(
+            image_path,
+            output_file=output_text_file,
+            output_image=output_image_file
+        )
+        
+        # 显示结果摘要
+        print("\n" + "=" * 60)
+        print("处理完成！")
+        print("=" * 60)
+        print(f"\n共处理 {len(results)} 条文本")
+        
+        # 显示前几条结果
+        max_display = min(3, len(results))
+        if max_display > 0:
+            print(f"\n前 {max_display} 条结果预览:")
+            for i in range(max_display):
+                result = results[i]
+                print(f"\n{i + 1}. 原文: {result['text']}")
+                if 'translated' in result and result.get('translation_success', False):
+                    print(f"   译文: {result['translated']}")
+                print(f"   置信度: {result['confidence']:.4f}")
+        
+        print(f"\n输出文件:")
+        print(f"  文本结果: {output_text_file}")
+        print(f"  处理后图片: {output_image_file}")
+        print("\n处理成功！请查看输出文件。\n")
+        
+    except Exception as e:
+        print(f"\n错误: 处理失败")
+        print(f"错误信息: {str(e)}")
+        print("\n请检查:")
+        print("1. ARK_API_KEY 是否正确")
+        print("2. 图片路径是否正确")
+        print("3. 是否已安装所有依赖 (pip install -r requirements.txt)")
+        print("\n")
+
+
 def main():
     """运行所有示例"""
     print("\n" + "=" * 60)
     print("PaddleOCR 文本识别与翻译服务 - 使用示例")
     print("=" * 60 + "\n")
     
-    print("提示：")
-    print("1. 请先准备好测试图片，并修改示例代码中的图片路径")
-    print("2. 如需使用翻译功能，请先设置环境变量:")
-    print("   export ARK_API_KEY='your-api-key-here'")
-    print("3. 取消下面相应示例函数的注释来运行\n")
+    print("推荐使用示例 6 - 完整工作流示例")
+    print("=" * 60)
+    print("示例 6 允许直接在代码中设置 API 密钥，无需环境变量")
+    print("提供完整的 OCR → 翻译 → 图片处理 工作流\n")
+    
+    print("其他示例说明：")
+    print("1. 示例 1: 基础 OCR 识别（不翻译）")
+    print("2. 示例 2: OCR + 翻译")
+    print("3. 示例 3: 批量处理")
+    print("4. 示例 4: 多语言翻译")
+    print("5. 示例 5: 自定义处理")
+    print("6. 示例 6: 完整工作流（推荐）★\n")
+    
+    print("快速开始：")
+    print("1. 编辑 example_complete_workflow_with_api_key() 函数")
+    print("2. 设置 ARK_API_KEY、image_path 等参数")
+    print("3. 取消下面 example_complete_workflow_with_api_key() 的注释")
+    print("4. 运行: python3 examples/api_example.py\n")
     
     # 运行示例（实际使用时取消注释）
     # example_single_image()
@@ -264,15 +384,14 @@ def main():
     # example_multilingual_translation()
     # example_custom_processing_with_translation()
     
+    # 推荐使用这个示例 - 完整工作流
+    # example_complete_workflow_with_api_key()
+    
     print("=" * 60)
-    print("示例演示完成")
+    print("使用说明")
     print("=" * 60)
-    print("\n使用说明：")
-    print("1. 编辑此文件，将图片路径替换为实际的文件路径")
-    print("2. 设置 ARK_API_KEY 环境变量（如需翻译）")
-    print("3. 取消相应示例函数的注释")
-    print("4. 运行: python3 examples/api_example.py")
-    print("\n")
+    print("请取消上面相应示例函数的注释来运行")
+    print("推荐直接使用 example_complete_workflow_with_api_key()\n")
 
 
 if __name__ == '__main__':
