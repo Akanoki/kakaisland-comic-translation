@@ -274,9 +274,9 @@ def example_enhanced_manga_recognition():
     # 增强检测参数 - 提高识别准确率
     # ========================================
     use_enhanced_detection = True    # 启用增强检测
-    det_db_thresh = 0.2              # 检测阈值（降低以检测更多文本，默认0.3）
-    det_db_box_thresh = 0.4          # 文本框阈值（降低以减少漏检，默认0.6）
-    det_db_unclip_ratio = 2.0        # 扩大检测框（增大以减少漏字，默认1.5）
+    det_db_thresh = 0.02              # 检测阈值（降低以检测更多文本，默认0.3）
+    det_db_box_thresh = 0.6          # 文本框阈值（降低以减少漏检，默认0.6）
+    det_db_unclip_ratio = 1.9        # 扩大检测框（增大以减少漏字，默认1.5）
     
     merge_boxes = True               # 启用文本框合并（解决拆分问题）
     merge_distance = 50              # 合并距离阈值（像素），距离小于此值的文本框会被合并
@@ -408,7 +408,7 @@ def example_complete_workflow_with_api_key():
     target_lang = 'zh'      # 翻译目标语言：'zh'(中文), 'en'(英文), 'ja'(日文), 'ko'(韩文)
     
     # 字体设置（可选）
-    font_path = None        # 自定义字体路径，None 则使用系统默认字体
+    font_path = "simsun.ttc"        # 自定义字体路径，None 则使用系统默认字体
     font_size = 20          # 字体大小
     
     # ========================================
