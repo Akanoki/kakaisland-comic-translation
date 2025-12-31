@@ -23,6 +23,7 @@ class TextRecognitionService:
                  ark_api_key=None, ark_model=None, enable_image_processing=False,
                  font_path=None, font_size=20, use_enhanced_detection=False,
                  det_db_thresh=0.3, det_db_box_thresh=0.5, det_db_unclip_ratio=1.6,
+                 det_limit_side_len=None, det_limit_type='min', det_max_side_len=None,
                  enable_char_correction=False, correction_confidence_threshold=0.7,
                  custom_correction_rules=None):
         """
@@ -44,6 +45,9 @@ class TextRecognitionService:
             det_db_thresh: 检测阈值（默认0.3，降低可检测更多文本）
             det_db_box_thresh: 文本框阈值（默认0.5，降低可减少漏检）
             det_db_unclip_ratio: 扩大检测框（默认1.6，增大可减少漏字）
+            det_limit_side_len: 图片边长限制，None则不限制
+            det_limit_type: 限制类型 'min' 或 'max'
+            det_max_side_len: 最大边长限制
             enable_char_correction: 是否启用字符纠错（修正形近字误判）
             correction_confidence_threshold: 纠错置信度阈值
             custom_correction_rules: 自定义纠错规则字典
@@ -78,7 +82,18 @@ class TextRecognitionService:
                 'det_db_box_thresh': det_db_box_thresh,
                 'det_db_unclip_ratio': det_db_unclip_ratio
             })
+            
+            # 添加边长限制参数（如果提供）
+            if det_limit_side_len is not None:
+                ocr_params['det_limit_side_len'] = det_limit_side_len
+                ocr_params['det_limit_type'] = det_limit_type
+            
+            if det_max_side_len is not None:
+                ocr_params['det_max_side_len'] = det_max_side_len
+            
             print(f"启用增强检测参数: thresh={det_db_thresh}, box_thresh={det_db_box_thresh}, unclip_ratio={det_db_unclip_ratio}")
+            if det_limit_side_len:
+                print(f"  边长限制: {det_limit_type}={det_limit_side_len}, max={det_max_side_len}")
         
         try:
             self.ocr = PaddleOCR(**ocr_params)

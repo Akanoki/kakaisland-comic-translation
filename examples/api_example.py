@@ -489,18 +489,159 @@ def example_complete_workflow_with_api_key():
         print("\n")
 
 
+def example_custom_detection_params():
+    """示例9: 使用自定义检测参数（精细调优）"""
+    print("=" * 60)
+    print("示例 9: 使用自定义检测参数 - 精细调优")
+    print("=" * 60)
+    
+    # ========================================
+    # 配置区域 - 在此处直接设置参数
+    # ========================================
+    
+    # ARK API 密钥
+    ARK_API_KEY = "6ecd7934-fd45-4484-8f40-42a2ae4c94db"  # 替换为你的实际 API 密钥
+    
+    # 图片路径
+    image_path = "C:\\Users\\ADMIN\\Desktop\\kakaisland\\01_111.jpg"  # 替换为你的漫画图片路径
+    
+    # 输出路径
+    output_text_file = "manga_custom_params_result.txt"
+    output_image_file = "manga_custom_params_translated.jpg"
+    
+    # 语言设置
+    ocr_lang = 'japan'      # 日文漫画
+    source_lang = 'ja'
+    target_lang = 'zh'
+    
+    # ========================================
+    # 自定义检测参数（精细调优）
+    # ========================================
+    use_enhanced_detection = True
+    
+    # 基础检测参数
+    det_db_thresh = 0.3              # thresh: 检测阈值（默认0.3）
+    det_db_box_thresh = 0.6          # box_thresh: 文本框阈值（默认0.6）
+    det_db_unclip_ratio = 2          # unclip_ratio: 扩大检测框（默认1.5，设置为2）
+    
+    # 边长限制参数
+    det_limit_side_len = 64          # limit_side_len: 最小边长限制（像素）
+    det_limit_type = 'min'           # limit_type: 限制类型 'min' 或 'max'
+    det_max_side_len = 4000          # max_side_len: 最大边长限制（像素）
+    
+    # 文本框合并参数
+    merge_boxes = True
+    merge_distance = 50
+    reading_order = 'rtl'
+    
+    # ========================================
+    # 执行处理
+    # ========================================
+    
+    print(f"\n配置信息:")
+    print(f"  图片路径: {image_path}")
+    print(f"  OCR 语言: {ocr_lang}")
+    print(f"\n自定义检测参数:")
+    print(f"  thresh: {det_db_thresh}")
+    print(f"  box_thresh: {det_db_box_thresh}")
+    print(f"  unclip_ratio: {det_db_unclip_ratio}")
+    print(f"  limit_side_len: {det_limit_side_len} ({det_limit_type})")
+    print(f"  max_side_len: {det_max_side_len}")
+    print(f"\n文本框合并:")
+    print(f"  合并距离: {merge_distance}px")
+    print(f"  阅读顺序: {'从右到左（日文漫画）' if reading_order == 'rtl' else '从左到右'}")
+    print(f"\n翻译: {source_lang} → {target_lang}\n")
+    
+    # 检查图片
+    if not os.path.exists(image_path):
+        print(f"错误: 图片文件不存在: {image_path}")
+        print("请修改 image_path 变量\n")
+        return
+    
+    # 检查 API 密钥
+    if ARK_API_KEY == "your-api-key-here":
+        print("警告: 请先设置 ARK_API_KEY\n")
+        return
+    
+    try:
+        # 初始化服务（使用自定义参数）
+        print("正在初始化 OCR 服务（自定义检测参数）...")
+        service = TextRecognitionService(
+            lang=ocr_lang,
+            use_angle_cls=True,
+            use_gpu=False,
+            enable_translation=True,
+            source_lang=source_lang,
+            target_lang=target_lang,
+            ark_api_key=ARK_API_KEY,
+            enable_image_processing=True,
+            # 自定义检测参数
+            use_enhanced_detection=use_enhanced_detection,
+            det_db_thresh=det_db_thresh,
+            det_db_box_thresh=det_db_box_thresh,
+            det_db_unclip_ratio=det_db_unclip_ratio,
+            det_limit_side_len=det_limit_side_len,
+            det_limit_type=det_limit_type,
+            det_max_side_len=det_max_side_len
+        )
+        
+        # 执行识别、翻译和图片处理
+        print("\n开始处理...")
+        results = service.recognize_text(
+            image_path,
+            output_file=output_text_file,
+            output_image=output_image_file,
+            merge_boxes=merge_boxes,
+            merge_distance=merge_distance,
+            reading_order=reading_order
+        )
+        
+        # 显示结果摘要
+        print("\n" + "=" * 60)
+        print("处理完成！")
+        print("=" * 60)
+        print(f"\n✓ 使用自定义检测参数")
+        print(f"✓ 启用文本框合并")
+        print(f"✓ 共处理 {len(results)} 条文本")
+        
+        # 显示前几条结果
+        max_display = min(3, len(results))
+        if max_display > 0:
+            print(f"\n前 {max_display} 条结果预览:")
+            for i in range(max_display):
+                result = results[i]
+                print(f"\n{i + 1}. 原文: {result['text']}")
+                if 'translated' in result and result.get('translation_success', False):
+                    print(f"   译文: {result['translated']}")
+                print(f"   置信度: {result['confidence']:.4f}")
+        
+        print(f"\n输出文件:")
+        print(f"  文本结果: {output_text_file}")
+        print(f"  处理后图片: {output_image_file}")
+        print("\n处理成功！请查看输出文件。\n")
+        
+    except Exception as e:
+        print(f"\n错误: 处理失败")
+        print(f"错误信息: {str(e)}")
+        print("\n请检查:")
+        print("1. ARK_API_KEY 是否正确")
+        print("2. 图片路径是否正确")
+        print("3. 是否已安装所有依赖 (pip install -r requirements.txt)")
+        print("\n")
+
+
 def main():
     """运行所有示例"""
     print("\n" + "=" * 60)
     print("PaddleOCR 文本识别与翻译服务 - 使用示例")
     print("=" * 60 + "\n")
     
-    print("🌟 推荐使用示例 7 - 增强型漫画识别（解决漏字和拆分问题）")
+    print("🌟 推荐使用示例 9 - 自定义检测参数（最新）")
     print("=" * 60)
-    print("示例 7 专门针对漫画优化，提供:")
-    print("  ✓ 增强检测参数，减少漏字")
-    print("  ✓ 文本框智能合并，解决句子拆分")
-    print("  ✓ 直接设置 API 密钥，无需环境变量")
+    print("示例 9 提供完整的参数控制:")
+    print("  ✓ 自定义检测参数 (thresh, box_thresh, unclip_ratio)")
+    print("  ✓ 边长限制控制 (limit_side_len, max_side_len)")
+    print("  ✓ 文本框智能合并")
     print("  ✓ 完整 OCR → 翻译 → 图片生成 工作流\n")
     
     print("其他示例说明:")
@@ -510,13 +651,19 @@ def main():
     print("4. 示例 4: 多语言翻译")
     print("5. 示例 5: 自定义处理")
     print("6. 示例 6: 完整工作流")
-    print("7. 示例 7: 增强型漫画识别（最新推荐）⭐⭐⭐\n")
+    print("7. 示例 7: 增强型漫画识别")
+    print("9. 示例 9: 自定义检测参数（推荐）⭐⭐⭐\n")
     
-    print("快速开始（针对漫画识别）：")
-    print("1. 编辑 example_enhanced_manga_recognition() 函数")
+    print("快速开始（使用自定义检测参数）：")
+    print("1. 编辑 example_custom_detection_params() 函数")
     print("2. 设置 ARK_API_KEY、image_path 等参数")
-    print("3. 根据需要调整检测参数（det_db_thresh, det_db_box_thresh, det_db_unclip_ratio）")
-    print("4. 取消下面 example_enhanced_manga_recognition() 的注释")
+    print("3. 根据需要调整检测参数")
+    print("   - thresh: 检测阈值")
+    print("   - box_thresh: 文本框阈值")
+    print("   - unclip_ratio: 扩大检测框")
+    print("   - limit_side_len: 边长限制")
+    print("   - max_side_len: 最大边长")
+    print("4. 取消下面 example_custom_detection_params() 的注释")
     print("5. 运行: python3 examples/api_example.py\n")
     
     # 运行示例（实际使用时取消注释）
@@ -526,15 +673,16 @@ def main():
     # example_multilingual_translation()
     # example_custom_processing_with_translation()
     # example_complete_workflow_with_api_key()
+    # example_enhanced_manga_recognition()
     
-    # 最新推荐 - 增强型漫画识别
-    example_enhanced_manga_recognition()
+    # 最新推荐 - 自定义检测参数
+    example_custom_detection_params()
     
     print("=" * 60)
     print("使用说明")
     print("=" * 60)
     print("请取消上面相应示例函数的注释来运行")
-    print("推荐使用 example_enhanced_manga_recognition() 获得最佳漫画识别效果\n")
+    print("推荐使用 example_custom_detection_params() 获得最佳控制效果\n")
 
 
 if __name__ == '__main__':
