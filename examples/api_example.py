@@ -20,10 +20,10 @@ def example_single_image():
     print("=" * 60)
     
     # 初始化服务
-    service = TextRecognitionService(lang='ch', use_gpu=False)
+    service = TextRecognitionService(lang='japan', use_gpu=False)
     
     # 识别图片
-    image_path = "your_image.jpg"  # 替换为你的图片路径
+    image_path = "C:\\Users\\ADMIN\\Desktop\\kakaisland\\01_111.jpg"  # 替换为你的图片路径
     
     # 如果图片不存在，跳过此示例
     if not os.path.exists(image_path):
@@ -40,6 +40,7 @@ def example_single_image():
         print(f"\n文本 {i}:")
         print(f"  内容: {result['text']}")
         print(f"  置信度: {result['confidence']:.4f}")
+        print(f"  位置: {result['position']}")
     
     print("\n")
 
@@ -667,7 +668,7 @@ def main():
     print("5. 运行: python3 examples/api_example.py\n")
     
     # 运行示例（实际使用时取消注释）
-    # example_single_image()
+    example_single_image()
     # example_ocr_with_translation()
     # example_batch_translation()
     # example_multilingual_translation()
@@ -676,7 +677,7 @@ def main():
     # example_enhanced_manga_recognition()
     
     # 最新推荐 - 自定义检测参数
-    example_custom_detection_params()
+    # example_custom_detection_params()
     
     print("=" * 60)
     print("使用说明")
